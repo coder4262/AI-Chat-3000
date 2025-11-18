@@ -1,5 +1,1 @@
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-}
+// This file is no longer used.

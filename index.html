@@ -1,25 +1,180 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gemini Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
-  <script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0"
-  }
-}
-</script>
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+      }
+    }
+    </script>
+    <style>
+      /* Simple scrollbar styling for a better look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1f2937; /* bg-gray-800 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #4b5563; /* bg-gray-600 */
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #6b7280; /* bg-gray-500 */
+      }
+    </style>
 </head>
-  <body class="bg-gray-900">
-    <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
-  </body>
+<body class="bg-gray-900 text-white font-sans">
+    <div id="app" class="flex flex-col h-screen">
+        <!-- Header -->
+        <header class="bg-gray-800/50 backdrop-blur-sm shadow-md sticky top-0 z-10">
+            <div class="container mx-auto px-4 py-3 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M19 3v4M17 5h4M12 2v4M10 4h4M8 10a4 4 0 118 0 4 4 0 01-8 0zM4.5 13.5a2.5 2.5 0 115 0 2.5 2.5 0 01-5 0zM14.5 13.5a2.5 2.5 0 115 0 2.5 2.5 0 01-5 0zM12 21a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+                <h1 class="text-xl md:text-2xl font-bold text-gray-100 ml-2">Gemini Chat</h1>
+            </div>
+        </header>
+
+        <!-- Chat Messages -->
+        <main id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+            <!-- Messages will be added here -->
+        </main>
+
+        <!-- Message Input -->
+        <footer class="sticky bottom-0 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700 p-2 md:p-4">
+            <div class="container mx-auto">
+                <form id="message-form" class="flex items-center gap-2 md:gap-4">
+                    <input id="message-input" type="text" placeholder="Type your message..."
+                        class="flex-grow bg-gray-800 text-gray-200 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700 transition duration-200 disabled:opacity-50"
+                        autocomplete="off">
+                    <button id="send-button" type="submit"
+                        class="bg-blue-600 text-white rounded-full p-3 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" transform="rotate(90)">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { GoogleGenAI } from '@google/genai';
+
+        const chatContainer = document.getElementById('chat-container');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        let chat;
+
+        // --- Core Functions ---
+
+        function initializeChat() {
+            try {
+                if (!process.env.API_KEY) {
+                    throw new Error("API_KEY environment variable not set.");
+                }
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                chat = ai.chats.create({
+                    model: 'gemini-2.5-flash',
+                    config: {
+                        systemInstruction: 'You are a helpful and friendly AI assistant. Be concise and clear in your responses.',
+                    },
+                });
+                addMessage("Hello! I'm a friendly AI assistant powered by Gemini. How can I help you today?", 'model');
+            } catch (e) {
+                console.error(e);
+                addMessage(`Error: ${e.message || "Failed to initialize the chat service."}`, 'error');
+                setLoading(false);
+            }
+        }
+
+        async function handleSendMessage(event) {
+            event.preventDefault();
+            const messageText = messageInput.value.trim();
+            if (!messageText) return;
+
+            addMessage(messageText, 'user');
+            messageInput.value = '';
+            setLoading(true);
+
+            try {
+                const result = await chat.sendMessage({ message: messageText });
+                addMessage(result.text, 'model');
+            } catch (e) {
+                console.error(e);
+                addMessage(`Error: ${e.message || "An error occurred while fetching the response."}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // --- UI Helper Functions ---
+
+        function setLoading(isLoading) {
+            messageInput.disabled = isLoading;
+            sendButton.disabled = isLoading;
+            
+            const existingLoader = document.getElementById('loading-indicator');
+            if (isLoading && !existingLoader) {
+                const loaderBubble = createMessageBubble('...', 'model', 'loading-indicator');
+                const loadingDots = `
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+                        <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+                        <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                    </div>`;
+                loaderBubble.querySelector('p').innerHTML = loadingDots;
+                chatContainer.appendChild(loaderBubble);
+            } else if (!isLoading && existingLoader) {
+                existingLoader.remove();
+            }
+            scrollToBottom();
+        }
+
+        function addMessage(text, role, id = null) {
+            const messageBubble = createMessageBubble(text, role, id);
+            chatContainer.appendChild(messageBubble);
+            scrollToBottom();
+        }
+
+        function createMessageBubble(text, role, id = null) {
+            const wrapper = document.createElement('div');
+            const bubble = document.createElement('div');
+            const paragraph = document.createElement('p');
+
+            const isUser = role === 'user';
+            wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+            bubble.className = `rounded-xl px-4 py-3 max-w-xs md:max-w-2xl shadow-lg ${
+                role === 'error' ? 'bg-red-500/20' : isUser ? 'bg-blue-600' : 'bg-gray-700'
+            }`;
+            paragraph.className = `text-sm md:text-base whitespace-pre-wrap ${
+                role === 'error' ? 'text-red-300' : isUser ? 'text-white' : 'text-gray-200'
+            }`;
+            
+            if (id) wrapper.id = id;
+            
+            paragraph.innerHTML = text.replace(/\n/g, '<br>'); // Basic newline handling
+            bubble.appendChild(paragraph);
+            wrapper.appendChild(bubble);
+            return wrapper;
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // --- Event Listeners ---
+        messageForm.addEventListener('submit', handleSendMessage);
+
+        // --- Initialization ---
+        initializeChat();
+    </script>
+</body>
 </html>

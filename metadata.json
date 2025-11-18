@@ -1,5 +1,5 @@
 {
   "name": "Gemini Chat",
-  "description": "A sleek and modern chat application to interact with powerful AI models, providing instant and intelligent responses in real-time.",
+  "description": "A simple and sleek chat application built with HTML and vanilla JavaScript to interact with the Gemini AI.",
   "requestFramePermissions": []
 }
